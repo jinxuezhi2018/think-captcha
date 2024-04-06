@@ -99,15 +99,15 @@ class Captcha
         }
         $hash = md5(uniqid());//生成唯一的id
         // 保存验证码
-        $values['code'] = strtolower($bag);//随时验证码
-        $values['create_time'] = time();    //验证码创建时间
+        $values['captcha_code'] = strtolower($bag);//随时验证码
+        $values['captcha_time'] = time();    //验证码创建时间
 
         Cache::set($hash,$values,$this->config['expire']);
 
         return [
             'value' => $bag,
             'key' => $hash,
-            'time' => $values['create_time']
+            'time' => $values['captcha_time']
         ];
     }
 
@@ -117,23 +117,28 @@ class Captcha
      * @param string $code 用户验证码
      * @return bool 用户验证码是否正确
      */
-    public function check(string $code): bool
+    public function check(string $captcha_key, string $captcha_code): bool
     {
-        if (!$this->session->has('captcha')) {
+        // key code 不能为空
+        if ( empty($captcha_key) || empty($captcha_code)) {
+            return false;
+        }else{
+            $captch_info =  Cache::get($captcha_key);
+            if ( empty($captch_info) ) {
+                return false;
+            }
+        }
+        // 是否过期
+        if (time() - $captch_info['captcha_time'] > $this->config['expire']) {
+            Cache::delete($captcha_key);
             return false;
         }
-
-        $key = $this->session->get('captcha.key');
-
-        $code = mb_strtolower($code, 'UTF-8');
-
-        $res = password_verify($code, $key);
-
-        if ($res) {
-            $this->session->delete('captcha');
+        // 验证code
+        if (strtolower($captcha_code) == $captch_info['captcha_code']) {
+            Cache::delete($captcha_key);
+            return true;
         }
-
-        return $res;
+        return false;
     }
 
     /**
